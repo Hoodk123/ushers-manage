@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShiftStatus {
+  ASSIGNED
+  CONFIRMED
+  DECLINED
+  SERVED
+}
+
+/// The leader / administrator. Each admin leads a team of ushers.
+model Admin {
+  id          String               @id @default(cuid())
+  clerkId     String               @unique
+  name        String
+  email       String               @unique
+  phone       String?
+  avatarUrl   String?
+  ushers      Usher[]
+  services    WorshipService[]
+  queue       RotationQueueEntry[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@map("admins")
+}
+
+/// A church usher. Child of the Admin who leads them.
+model Usher {
+  id          String                @id @default(cuid())
+  clerkId     String?               @unique
+  adminId     String
+  name        String
+  email       String                @unique
+  phone       String?
+  avatarUrl   String?
+  isActive    Boolean               @default(true)
+  admin       Admin                 @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  shifts      Shift[]
+  queueEntry  RotationQueueEntry?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@map("ushers")
+}
+
+/// A scheduled worship service where ushers are needed.
+model WorshipService {
+  id          String               @id @default(cuid())
+  adminId     String
+  name        String
+  date        DateTime
+  location    String?
+  notes       String?
+  admin       Admin                @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  shifts      Shift[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@map("worship_services")
+}
+
+/// Assignment of one usher to one service.
+model Shift {
+  id          String       @id @default(cuid())
+  usherId     String
+  serviceId   String
+  status      ShiftStatus  @default(ASSIGNED)
+  usher       Usher        @relation(fields: [usherId], references: [id], onDelete: Cascade)
+  service     WorshipService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([usherId, serviceId])
+  @@map("shifts")
+}
+
+/// FIFO fair-rotation queue, one entry per usher per admin.
+model RotationQueueEntry {
+  id          String   @id @default(cuid())
+  adminId     String
+  usherId     String   @unique
+  position    Int
+  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  usher       Usher    @relation(fields: [usherId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([adminId, position])
+  @@map("rotation_queue")
+}
