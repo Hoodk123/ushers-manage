@@ -3,6 +3,10 @@ import express from "express";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { prisma } from "./lib/prisma.js";
+import { ushersRouter } from "./routes/ushers.js";
+import { servicesRouter } from "./routes/services.js";
+import { rotationRouter } from "./routes/rotation.js";
+import { myScheduleRouter } from "./routes/my-schedule.js";
 
 export const app = express();
 
@@ -31,6 +35,11 @@ app.get("/api/health", async (_req, res) => {
       .json({ status: "error", db: "unreachable", ts: new Date().toISOString(), reason: (err as Error).message });
   }
 });
+
+app.use("/api/ushers", ushersRouter);
+app.use("/api/services", servicesRouter);
+app.use("/api/rotation", rotationRouter);
+app.use("/api/my-schedule", myScheduleRouter);
 
 app.get("/", (_req, res) => {
   res.json({ name: "Deacons Manage API", version: "0.1.0", health: "/api/health" });

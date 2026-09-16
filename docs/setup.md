@@ -18,6 +18,8 @@ dependencies hoisted by npm workspaces.
 
 ## 2. Environment
 
+Server (API + database):
+
 ```bash
 cp server/.env.example server/.env
 ```
@@ -28,12 +30,29 @@ Required for the database:
 DATABASE_URL="postgresql://.../deacondb?sslmode=require"
 ```
 
+The publishable key lives in **both** places — the server uses it
+
+Frontend (Vite reads keys from its own `.env`, prefixed `VITE_`):
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+```
+VITE_CLERK_PUBLISHABLE_KEY="pk_test_..."
+```
+
+> Note: the publishable key is safe to embed in the client bundle and is meant
+> to be public. The `CLERK_SECRET_KEY` must never be shipped to the browser.
+
 Optional (enables Clerk auth on the API):
 
 ```
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_PUBLISHABLE_KEY="pk_test_..."
 ```
+
+Both `server/.env` and `frontend/.env` are git-ignored.
 
 ## 3. Database migrations
 

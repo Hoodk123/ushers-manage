@@ -1,0 +1,12 @@
+import type { AuthObject } from "@clerk/backend";
+import type { PendingSessionOptions } from "@clerk/shared/types";
+
+declare global {
+  namespace Express {
+    interface Request {
+      auth: (options?: PendingSessionOptions) => AuthObject;
+    }
+  }
+}
+
+export {};
