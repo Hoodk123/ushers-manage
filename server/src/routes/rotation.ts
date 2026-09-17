@@ -1,4 +1,6 @@
 import { Router } from "express";
+import type { Shift } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -23,6 +25,11 @@ rotationRouter.get("/", async (_req, res) => {
   res.json({ queue });
 });
 
+const generateSchema = z.object({
+  serviceId: z.string().min(1),
+  count: z.coerce.number().int().min(1).max(20),
+});
+
 /**
  * POST /api/rotation/generate — assign ushers to a service using FIFO.
  *
@@ -33,12 +40,11 @@ rotationRouter.get("/", async (_req, res) => {
 rotationRouter.post("/generate", async (req, res) => {
   const admin = res.locals.admin as { id: string };
 
-  const serviceId = (req.body as { serviceId?: string })?.serviceId;
-  const count = Number((req.body as { count?: number })?.count);
-
-  if (!serviceId || !Number.isInteger(count) || count < 1) {
-    return res.status(400).json({ error: "serviceId (string) and count (positive integer) are required" });
+  const parsed = generateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   }
+  const { serviceId, count } = parsed.data;
 
   const service = await prisma.worshipService.findFirst({
     where: { id: serviceId, adminId: admin.id },
@@ -65,30 +71,24 @@ rotationRouter.post("/generate", async (req, res) => {
       return { service, shifts: [], rotated: [] };
     }
 
-    const shifts = await Promise.all(
-      picks.map((pick) =>
-        tx.shift.create({
-          data: { usherId: pick.usher.id, serviceId },
-        })
-      )
-    );
+    const shifts: Shift[] = [];
+    for (const pick of picks) {
+      shifts.push(await tx.shift.create({ data: { usherId: pick.usher.id, serviceId } }));
+    }
 
     // Rotate the chosen ushers to the back, renumbering the queue 1..N.
     const pickIds = new Set(picks.map((p) => p.usher.id));
     const remaining = queue.filter((e) => !pickIds.has(e.usher.id));
 
     let pos = 0;
-    const updates = remaining.map((e) => {
+    for (const entry of remaining) {
       pos += 1;
-      return tx.rotationQueueEntry.update({ where: { id: e.id }, data: { position: pos } });
-    });
+      await tx.rotationQueueEntry.update({ where: { id: entry.id }, data: { position: pos } });
+    }
     for (const pick of picks) {
       pos += 1;
-      updates.push(
-        tx.rotationQueueEntry.update({ where: { id: pick.id }, data: { position: pos } })
-      );
+      await tx.rotationQueueEntry.update({ where: { id: pick.id }, data: { position: pos } });
     }
-    await Promise.all(updates);
 
     return { service, shifts, rotated: picks.map((p) => p.usher.name) };
     },
