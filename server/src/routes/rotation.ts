@@ -47,7 +47,8 @@ rotationRouter.post("/generate", async (req, res) => {
     return res.status(404).json({ error: "Service not found" });
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(
+    async (tx) => {
     const queue = await tx.rotationQueueEntry.findMany({
       where: { adminId: admin.id },
       orderBy: { position: "asc" },
@@ -90,7 +91,10 @@ rotationRouter.post("/generate", async (req, res) => {
     await Promise.all(updates);
 
     return { service, shifts, rotated: picks.map((p) => p.usher.name) };
-  });
+    },
+    // Neon round-trips are slow; Prisma's 5s default is too tight.
+    { timeout: 30_000, maxWait: 10_000 }
+  );
 
   res.status(201).json(result);
 });

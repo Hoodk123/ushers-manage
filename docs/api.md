@@ -3,9 +3,25 @@
 Base URL: `http://localhost:4000` (dev). Auth via Bearer token in the
 `Authorization` header (`<token>` from Clerk).
 
-All routes under `/api/ushers`, `/api/services`, and `/api/rotation` require an
-**ADMIN** role claim (`publicMetadata.role = "ADMIN"`) **and** a matching row in
-the `admins` table (`clerkId` must equal the Clerk user id).
+Roles come from **table membership**, not the JWT: `requireAdmin` checks the
+`admins` table and `requireUsher` checks the `ushers` table (both keyed on the
+Clerk user id in `clerkId`). If a signed-in user has no row yet, the guard
+attempts a one-time link-by-email as a fallback before denying.
+
+## Clerk Webhooks — `/api/webhooks/clerk`
+
+| Method | Path          | Auth  | Description                |
+| ------ | ------------- | ----- | -------------------------- |
+| POST   | `/api/webhooks/clerk` | Svix signed | Clerk → Neon user sync |
+
+Called by Clerk (no Bearer token). Requests must carry the Svix
+`svix-id`/`svix-timestamp`/`svix-signature` headers; the signature is verified
+against `CLERK_WEBHOOK_SECRET`. Handled events:
+
+- `user.created` / `user.updated` — link the Clerk user to the seeded
+  `admins`/`ushers` row by email, assign the role, and write it back to Clerk
+  `publicMetadata.role` so sessions carry it.
+- `user.deleted` — remove the matching admin/usher row.
 
 ## Health
 
@@ -62,7 +78,7 @@ ushers to the back of the queue.
 
 ## My Schedule — `/api/my-schedule`
 
-Requires an **USHER** role claim and a matching `ushers` row (`clerkId`).
+Requires a matching `ushers` row (`clerkId`).
 
 | Method | Path          | Auth  | Description                          |
 | ------ | ------------- | ----- | ------------------------------------ |

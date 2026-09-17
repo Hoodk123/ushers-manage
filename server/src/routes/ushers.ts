@@ -42,29 +42,33 @@ ushersRouter.post("/", async (req, res) => {
     return res.status(409).json({ error: "An usher with that email already exists" });
   }
 
-  const usher = await prisma.$transaction(async (tx) => {
-    const created = await tx.usher.create({
-      data: {
-        adminId: admin.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone ?? null,
-        clerkId: data.clerkId ?? null,
-      },
-    });
-    const maxPos = await tx.rotationQueueEntry.findFirst({
-      where: { adminId: admin.id },
-      orderBy: { position: "desc" },
-    });
-    await tx.rotationQueueEntry.create({
-      data: {
-        adminId: admin.id,
-        usherId: created.id,
-        position: (maxPos?.position ?? 0) + 1,
-      },
-    });
-    return created;
-  });
+  const usher = await prisma.$transaction(
+    async (tx) => {
+      const created = await tx.usher.create({
+        data: {
+          adminId: admin.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone ?? null,
+          clerkId: data.clerkId ?? null,
+        },
+      });
+      const maxPos = await tx.rotationQueueEntry.findFirst({
+        where: { adminId: admin.id },
+        orderBy: { position: "desc" },
+      });
+      await tx.rotationQueueEntry.create({
+        data: {
+          adminId: admin.id,
+          usherId: created.id,
+          position: (maxPos?.position ?? 0) + 1,
+        },
+      });
+      return created;
+    },
+    // Neon round-trips are slow; Prisma's 5s default is too tight.
+    { timeout: 30_000, maxWait: 10_000 }
+  );
 
   res.status(201).json({ usher });
 });

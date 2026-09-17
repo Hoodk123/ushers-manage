@@ -54,6 +54,33 @@ CLERK_PUBLISHABLE_KEY="pk_test_..."
 
 Both `server/.env` and `frontend/.env` are git-ignored.
 
+## 2b. Clerk → Neon user sync (webhook)
+
+When a user signs up in Clerk, the app links them to the seeded `admins` /
+`ushers` rows by email address and assigns their role ("ADMIN" for the seed
+admin, "USHER" for everything else). Setup:
+
+1. Add the signing secret to `server/.env`:
+
+   ```
+   CLERK_WEBHOOK_SECRET="whsec_..."
+   ```
+
+   Get it from **Clerk Dashboard → Webhooks → your endpoint → Signing Secret**.
+
+2. Create the endpoint in Clerk Dashboard:
+   - **Endpoint URL:** `<your-api-base>/api/webhooks/clerk`
+     (locally use a tunnel such as `ngrok http 4000`; production uses the domain
+     the API is served on).
+   - **Events:** subscribe to `user.created`, `user.updated`, and `user.deleted`.
+
+3. Restart the API server. The first test sign-up should appear as an usher (or
+   the seeded admin if the email matches `admin@example.com`).
+
+> The webhook is the source of truth. As a fallback for the small race where a
+> user hits the API before the webhook lands, `requireAdmin` / `requireUsher`
+> also attempt a link-by-email on the first request (never creating rows).
+
 ## 3. Database migrations
 
 ```bash
