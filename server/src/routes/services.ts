@@ -81,6 +81,6 @@ servicesRouter.delete("/:id", async (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Service not found" });
   }
-  await prisma.worshipService.delete({ where: { id: existing.id } });
+  await prisma.worshipService.delete({ where: { id: existing.id, adminId: existing.adminId } });
   res.status(204).end();
 });

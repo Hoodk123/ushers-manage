@@ -109,6 +109,6 @@ ushersRouter.delete("/:id", async (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Usher not found" });
   }
-  await prisma.usher.delete({ where: { id: existing.id } });
+  await prisma.usher.delete({ where: { id: existing.id, adminId: existing.adminId } });
   res.status(204).end();
 });
