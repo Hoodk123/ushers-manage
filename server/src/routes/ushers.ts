@@ -89,7 +89,7 @@ ushersRouter.patch("/:id", async (req, res) => {
   }
 
   const usher = await prisma.usher.update({
-    where: { id: existing.id },
+    where: { id: existing.id, adminId: existing.adminId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),

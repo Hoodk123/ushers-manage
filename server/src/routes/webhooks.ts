@@ -1,10 +1,19 @@
 import { Router } from "express";
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { Webhook } from "svix";
 import type { WebhookEvent } from "@clerk/express";
 import { syncClerkUser, removeClerkUser } from "../lib/sync-user.js";
 
 export const webhooksRouter = Router();
+
+const clerkWebhookLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many webhook requests" },
+});
 
 /**
  * POST /api/webhooks/clerk
@@ -18,6 +27,7 @@ export const webhooksRouter = Router();
 webhooksRouter.post(
   "/clerk",
   express.raw({ type: "application/json" }),
+  clerkWebhookLimiter,
   async (req, res) => {
     const secret = process.env.CLERK_WEBHOOK_SECRET;
     if (!secret) {

@@ -11,6 +11,6 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Run Semgrep (community defaults plus repo custom rules)
         run: semgrep scan --config auto --config .semgrep/ --error

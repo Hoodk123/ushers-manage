@@ -48,7 +48,7 @@ async function provisionSessionUser(
     );
     return result?.role === role;
   } catch (err) {
-    console.warn(`[warn] JIT provisioning failed for ${userId}:`, (err as Error).message);
+    console.warn("[warn] JIT provisioning failed for %s:", userId, (err as Error).message);
     return false;
   }
 }

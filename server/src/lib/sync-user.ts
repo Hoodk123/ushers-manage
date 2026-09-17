@@ -191,7 +191,9 @@ async function ensureClerkRole(clerkId: string, role: ClerkRole): Promise<void> 
     });
   } catch (err) {
     console.warn(
-      `[warn] Could not write role "${role}" to Clerk metadata for ${clerkId}:`,
+      "[warn] Could not write role %s to Clerk metadata for %s:",
+      role,
+      clerkId,
       (err as Error).message
     );
   }
