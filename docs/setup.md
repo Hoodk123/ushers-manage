@@ -85,6 +85,52 @@ admin, "USHER" for everything else). Setup:
 > link is exact-email first, then plus-tag base, and it never steals a row that
 > is already claimed by another Clerk user.
 
+To exercise the webhook itself, use **Clerk Dashboard → Webhooks → your endpoint
+→ Send test**. That sends a properly Svix-signed `user.created` for one of your
+Clerk users (the endpoint must be reachable — a tunnel like `ngrok http 4000`
+works for local dev). For scripted local tests, `svix-cli` can forge signed
+requests; Postman alone cannot because the `svix-signature` header is HMAC.
+
+## 2c. Testing auth + linking (Postman)
+
+The API trusts **Clerk session tokens**, not static keys, so every Postman
+request carries a Bearer token minted by Clerk for the user you test as.
+
+1. Point the seed at the account you actually sign in with — edit your local
+   `server/.env` (git-ignored; never the committed `server/.env.example`):
+
+   ```
+   SEED_ADMIN_EMAIL="admin+clerk_test@example.com"
+   SEED_ADMIN_CLERK_ID=""
+   ```
+
+   - `SEED_ADMIN_EMAIL` is the email the seed admin is created with; make it
+     match the Clerk sign-in so the link is a direct exact hit.
+   - `SEED_ADMIN_CLERK_ID` is optional. **Leave it empty (recommended)** — the
+     guard JIT-links whatever Clerk account signs in (works even when Clerk mints
+     a new tester user each session). Setting it to a concrete `user_…` id
+     pre-links the seed at `npm run db:seed`, but then a *different* test account
+     with another email would be denied, since the row is already claimed.
+   - Re-run the seed after a change: `npm run db:seed -w server`.
+
+2. Mint a token: **Clerk Dashboard → Users → your test user → Create test
+   token** (dev instances only) and copy it.
+
+3. Postman (base URL `http://localhost:4000`):
+   - New request → **Auth → Bearer Token** → paste the token.
+   - `GET /api/health` → `{ "status": "ok", "db": "deacondb" }`.
+   - `GET /api/services` → `[]` (200) on the first call already: the guard links
+     your admin row by email **inline** in that request. A `403` means the
+     sign-in email matched no seeded row.
+   - `GET /api/rotation`, `GET /api/ushers` → ADMIN, `[]` or the current lists.
+   - `POST /api/services` body `{ "name": "Sunday Morning", "date": "2026-09-20T08:00:00Z" }` → 201.
+   - `GET /api/my-schedule` → `403` (your test user has an admin row, not an
+     ushers row — expected).
+
+4. Confirm the link: `npx prisma studio` → `admins` table → the seed admin has
+   `email = admin+clerk_test@example.com` and `clerkId = user_3JTE…` after your
+   first successful ADMIN call.
+
 ## 3. Database migrations
 
 ```bash
