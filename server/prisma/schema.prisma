@@ -17,7 +17,7 @@ enum ShiftStatus {
 /// The leader / administrator. Each admin leads a team of ushers.
 model Admin {
   id          String               @id @default(cuid())
-  clerkId     String               @unique
+  clerkId     String?              @unique
   name        String
   email       String               @unique
   phone       String?
@@ -78,6 +78,8 @@ model Shift {
   updatedAt   DateTime     @updatedAt
 
   @@unique([usherId, serviceId])
+  @@index([usherId])
+  @@index([serviceId])
   @@map("shifts")
 }
 

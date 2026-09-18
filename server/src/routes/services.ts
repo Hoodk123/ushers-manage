@@ -61,7 +61,7 @@ servicesRouter.patch("/:id", async (req, res) => {
     return res.status(404).json({ error: "Service not found" });
   }
   const service = await prisma.worshipService.update({
-    where: { id: existing.id },
+    where: { id: existing.id, adminId: existing.adminId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.date !== undefined ? { date: parsed.data.date } : {}),
@@ -81,6 +81,6 @@ servicesRouter.delete("/:id", async (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Service not found" });
   }
-  await prisma.worshipService.delete({ where: { id: existing.id } });
+  await prisma.worshipService.delete({ where: { id: existing.id, adminId: existing.adminId } });
   res.status(204).end();
 });

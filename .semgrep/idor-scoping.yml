@@ -1,0 +1,36 @@
+rules:
+  - id: idor-client-id-without-ownership-scope
+    mode: taint
+    languages:
+      - typescript
+      - javascript
+    severity: ERROR
+    message: >-
+      Client-supplied id flows into a Prisma `where` clause without an
+      ownership scope (no `adminId`/`usherId` filter in the call). This is
+      an IDOR: any signed-in user could read or modify another tenant's data
+      by guessing cuids. Scope the query, e.g. `where: { id, adminId }`
+      (admin) or `where: { id, usherId }` (usher).
+    pattern-sources:
+      - pattern: req.params.$ANY
+      - patterns:
+          - pattern: req.body.$ANY
+          - pattern-not: req.body.adminId
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  $CLIENT.$MODEL.$METHOD({
+                    where: { id: $ID, ... },
+                  })
+              - pattern: |
+                  $CLIENT.$MODEL.$METHOD({
+                    where: { id: $ID },
+                  })
+          - pattern-not-regex: (adminId|usherId)
+          - focus-metavariable:
+              - $ID
+    metadata:
+      category: security
+      cwe:
+        - "CWE-639: Authorization Bypass Through User-Controlled Key"

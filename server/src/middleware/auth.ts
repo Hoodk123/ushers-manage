@@ -1,11 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
+import { clerkClient } from "@clerk/express";
 import { prisma } from "../lib/prisma.js";
-
-const ROLE_KEY = "role" as const;
+import { syncClerkUser, type ClerkRole } from "../lib/sync-user.js";
 
 interface SessionAuth {
   userId: string;
-  role: string | string[] | undefined;
 }
 
 /**
@@ -16,21 +15,42 @@ interface SessionAuth {
 function getAuth(req: Request): SessionAuth | null {
   if (typeof req.auth !== "function") return null;
   const auth = req.auth() as
-    | { isAuthenticated?: boolean; userId?: string; sessionClaims?: { publicMetadata?: unknown } | null }
+    | { isAuthenticated?: boolean; userId?: string }
     | null
     | undefined;
   if (!auth?.isAuthenticated || !auth.userId) return null;
-
-  const meta = auth.sessionClaims?.publicMetadata as
-    | { [ROLE_KEY]?: string | string[] }
-    | undefined;
-
-  return { userId: auth.userId, role: meta?.role };
+  return { userId: auth.userId };
 }
 
-function hasRole(auth: SessionAuth, role: string) {
-  if (Array.isArray(auth.role)) return auth.role.includes(role);
-  return auth.role === role;
+/**
+ * JIT fallback: if a signed-in user has no row yet (e.g. they hit the API
+ * before the Clerk webhook lands), link their seed record by email.
+ * linkOnly keeps this from ever creating new rows on a request path.
+ */
+async function provisionSessionUser(
+  userId: string,
+  role: ClerkRole
+): Promise<boolean> {
+  try {
+    const user = await clerkClient.users.getUser(userId);
+    const primary = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId);
+    const email = primary?.emailAddress ?? user.emailAddresses[0]?.emailAddress;
+    if (!email) return false;
+
+    const result = await syncClerkUser(
+      {
+        clerkId: userId,
+        email,
+        name: [user.firstName, user.lastName].filter(Boolean).join(" ") || null,
+        role,
+      },
+      { linkOnly: true }
+    );
+    return result?.role === role;
+  } catch (err) {
+    console.warn("[warn] JIT provisioning failed for %s:", userId, (err as Error).message);
+    return false;
+  }
 }
 
 /** Any signed-in user (admin or usher). 401 when unauthenticated. */
@@ -42,34 +62,41 @@ export function requireUser(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-/** Requires the caller to carry an ADMIN role claim and exist in the admins table. */
+/** Admin access. Table membership decides the role; JIT-links seeded admins by email. */
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);
   if (!auth) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  if (!hasRole(auth, "ADMIN")) {
-    return res.status(403).json({ error: "Forbidden: ADMIN role required" });
+  let admin = await prisma.admin.findUnique({ where: { clerkId: auth.userId } });
+  if (!admin && (await provisionSessionUser(auth.userId, "ADMIN"))) {
+    admin = await prisma.admin.findUnique({ where: { clerkId: auth.userId } });
   }
-  const admin = await prisma.admin.findUnique({ where: { clerkId: auth.userId } });
   if (!admin) {
-    return res
-      .status(403)
-      .json({ error: "Forbidden: Clerk user is not registered as an admin in this app" });
+    return res.status(403).json({
+      error:
+        "Forbidden: no admin record is linked to this Clerk user " +
+        "(check SEED_ADMIN_EMAIL matches the Clerk sign-in email)",
+    });
   }
   res.locals.admin = admin;
   next();
 }
 
-/** Resolves the signed-in usher row (for usher-facing routes). */
+/** Resolves the signed-in usher row (for usher-facing routes). JIT-links seeded ushers by email. */
 export async function requireUsher(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);
   if (!auth) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const usher = await prisma.usher.findUnique({ where: { clerkId: auth.userId } });
+  let usher = await prisma.usher.findUnique({ where: { clerkId: auth.userId } });
+  if (!usher && (await provisionSessionUser(auth.userId, "USHER"))) {
+    usher = await prisma.usher.findUnique({ where: { clerkId: auth.userId } });
+  }
   if (!usher) {
-    return res.status(403).json({ error: "Forbidden: Clerk user is not registered as an usher" });
+    return res
+      .status(403)
+      .json({ error: "Forbidden: no usher record is linked to this Clerk user" });
   }
   res.locals.usher = usher;
   next();
