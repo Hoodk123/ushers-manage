@@ -75,11 +75,15 @@ admin, "USHER" for everything else). Setup:
    - **Events:** subscribe to `user.created`, `user.updated`, and `user.deleted`.
 
 3. Restart the API server. The first test sign-up should appear as an usher (or
-   the seeded admin if the email matches `admin@example.com`).
+   the seeded admin — set `SEED_ADMIN_EMAIL` in `server/.env` to the address you
+   sign into Clerk with; plus-tagged test addresses such as
+   `admin+clerk_test@example.com` link back to the base `admin@example.com`).
 
 > The webhook is the source of truth. As a fallback for the small race where a
 > user hits the API before the webhook lands, `requireAdmin` / `requireUsher`
-> also attempt a link-by-email on the first request (never creating rows).
+> also attempt a link-by-email on the first request (never creating rows). The
+> link is exact-email first, then plus-tag base, and it never steals a row that
+> is already claimed by another Clerk user.
 
 ## 3. Database migrations
 
@@ -88,6 +92,14 @@ npm run db:migrate      # prisma migrate dev
 npm run db:seed         # sample admin + 4 ushers
 npm run db:check        # masked connectivity check (prints host + db name only)
 ```
+
+Seeding is driven by `server/.env`:
+
+- `SEED_ADMIN_EMAIL` — the seed admin's email (default `admin@example.com`).
+  Use the address you actually log into Clerk with.
+- `SEED_ADMIN_CLERK_ID` — optional. Set it to a Clerk user id to link the seed
+  admin directly at seed time; leave empty and the API links it on the first
+  authenticated request (JIT). No Clerk ids are hardcoded anywhere in code.
 
 ## 4. Run
 

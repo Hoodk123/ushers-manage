@@ -73,9 +73,11 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     admin = await prisma.admin.findUnique({ where: { clerkId: auth.userId } });
   }
   if (!admin) {
-    return res
-      .status(403)
-      .json({ error: "Forbidden: Clerk user is not registered as an admin in this app" });
+    return res.status(403).json({
+      error:
+        "Forbidden: no admin record is linked to this Clerk user " +
+        "(check SEED_ADMIN_EMAIL matches the Clerk sign-in email)",
+    });
   }
   res.locals.admin = admin;
   next();
@@ -92,7 +94,9 @@ export async function requireUsher(req: Request, res: Response, next: NextFuncti
     usher = await prisma.usher.findUnique({ where: { clerkId: auth.userId } });
   }
   if (!usher) {
-    return res.status(403).json({ error: "Forbidden: Clerk user is not registered as an usher" });
+    return res
+      .status(403)
+      .json({ error: "Forbidden: no usher record is linked to this Clerk user" });
   }
   res.locals.usher = usher;
   next();

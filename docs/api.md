@@ -6,7 +6,9 @@ Base URL: `http://localhost:4000` (dev). Auth via Bearer token in the
 Roles come from **table membership**, not the JWT: `requireAdmin` checks the
 `admins` table and `requireUsher` checks the `ushers` table (both keyed on the
 Clerk user id in `clerkId`). If a signed-in user has no row yet, the guard
-attempts a one-time link-by-email as a fallback before denying.
+attempts a one-time link-by-email as a fallback before denying — exact email
+first, then the plus-tag base (`admin+clerk_test@example.com` → `admin@example.com`),
+never claiming a row that already belongs to another Clerk user.
 
 ## Clerk Webhooks — `/api/webhooks/clerk`
 

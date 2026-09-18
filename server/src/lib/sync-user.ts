@@ -37,6 +37,7 @@ interface ExistingLookup {
  * middleware fallback (linkOnly). Roles are decided by DB table membership:
  *  - explicit Clerk role (+ email match) wins,
  *  - otherwise an existing admins/ushers row with the same email is linked,
+ *    (exact email first, plus-tag base like admin+clerk_test@… tolerated),
  *  - otherwise new rows default to USHER (first-ever user becomes ADMIN).
  */
 export async function syncClerkUser(
@@ -44,6 +45,7 @@ export async function syncClerkUser(
   options: SyncOptions = {}
 ): Promise<SyncResult | null> {
   const email = input.email.trim().toLowerCase();
+  const canonicalEmail = plusBaseEmail(email) ?? email;
   const clerkId = input.clerkId;
 
   const result = await prisma.$transaction(
@@ -56,33 +58,33 @@ export async function syncClerkUser(
       if (existing.adminByClerk) {
         const updated = await tx.admin.update({
           where: { id: existing.adminByClerk.id },
-          data: { name: displayName(input), email, clerkId },
+          data: { name: displayName(input), email: canonicalEmail, clerkId },
         });
         return { role, kind: "admin", status: "updated", id: updated.id } as const;
       }
       if (existing.adminByEmail) {
         const linked = await tx.admin.update({
           where: { id: existing.adminByEmail.id },
-          data: { clerkId, name: displayName(input) },
+          data: { clerkId, email: canonicalEmail, name: displayName(input) },
         });
         return { role, kind: "admin", status: "linked", id: linked.id } as const;
       }
       if (options.linkOnly) return null;
-      const created = await tx.admin.create({ data: { clerkId, email, name: displayName(input) } });
+      const created = await tx.admin.create({ data: { clerkId, email: canonicalEmail, name: displayName(input) } });
       return { role, kind: "admin", status: "created", id: created.id } as const;
     }
 
     if (existing.usherByClerk) {
       const updated = await tx.usher.update({
         where: { id: existing.usherByClerk.id },
-        data: { name: displayName(input), email, clerkId },
+        data: { name: displayName(input), email: canonicalEmail, clerkId },
       });
       return { role, kind: "usher", status: "updated", id: updated.id } as const;
     }
     if (existing.usherByEmail) {
       const linked = await tx.usher.update({
         where: { id: existing.usherByEmail.id },
-        data: { clerkId, name: displayName(input), email },
+        data: { clerkId, name: displayName(input), email: canonicalEmail },
       });
       return { role, kind: "usher", status: "linked", id: linked.id } as const;
     }
@@ -96,7 +98,7 @@ export async function syncClerkUser(
       orderBy: { position: "desc" },
     });
     const created = await tx.usher.create({
-      data: { adminId: defaultAdmin.id, clerkId, email, name: displayName(input) },
+      data: { adminId: defaultAdmin.id, clerkId, email: canonicalEmail, name: displayName(input) },
     });
     await tx.rotationQueueEntry.create({
       data: { adminId: defaultAdmin.id, usherId: created.id, position: (maxPos?.position ?? 0) + 1 },
@@ -145,6 +147,21 @@ async function findExisting(
     where: { clerkId },
     select: { id: true },
   });
+  const byEmail = await findByEmail(tx, email);
+  return { adminByClerk, usherByClerk, adminByEmail: byEmail.adminByEmail, usherByEmail: byEmail.usherByEmail };
+}
+
+/**
+ * Locates the admin/usher rows owning `email`. An exact (case-insensitive)
+ * match always wins. When it misses, a plus-tag alias is tolerated so Clerk
+ * test accounts (admin+clerk_test@example.com) link back to the seeded base
+ * record (admin@example.com) — but only if the row is not already claimed by a
+ * real Clerk user (user_…) and only when exactly one candidate matches.
+ */
+async function findByEmail(
+  tx: Prisma.TransactionClient,
+  email: string
+): Promise<{ adminByEmail: { id: string } | null; usherByEmail: { id: string } | null }> {
   const adminByEmail = await tx.admin.findFirst({
     where: { email: { equals: email, mode: "insensitive" } },
     select: { id: true },
@@ -153,7 +170,36 @@ async function findExisting(
     where: { email: { equals: email, mode: "insensitive" } },
     select: { id: true },
   });
-  return { adminByClerk, usherByClerk, adminByEmail, usherByEmail };
+  if (adminByEmail || usherByEmail) return { adminByEmail, usherByEmail };
+
+  const base = plusBaseEmail(email);
+  if (!base) return { adminByEmail, usherByEmail };
+  const unclaimed = [
+    { clerkId: null },
+    { clerkId: { not: { startsWith: "user_" } } },
+  ];
+
+  const admins = await tx.admin.findMany({
+    where: { email: { equals: base, mode: "insensitive" }, OR: unclaimed },
+    select: { id: true },
+  });
+  const ushers = await tx.usher.findMany({
+    where: { email: { equals: base, mode: "insensitive" }, OR: unclaimed },
+    select: { id: true },
+  });
+  return {
+    adminByEmail: admins.length === 1 ? admins[0] : null,
+    usherByEmail: ushers.length === 1 ? ushers[0] : null,
+  };
+}
+
+/** "local+tag@domain" -> "local@domain"; null when the local part has no + tag. */
+function plusBaseEmail(email: string): string | null {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return null;
+  const plus = email.slice(0, at).indexOf("+");
+  if (plus <= 0) return null;
+  return `${email.slice(0, plus)}@${email.slice(at + 1)}`.toLowerCase();
 }
 
 async function resolveRole(
