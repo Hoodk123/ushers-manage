@@ -3,9 +3,52 @@
 Base URL: `http://localhost:4000` (dev). Auth via Bearer token in the
 `Authorization` header (`<token>` from Clerk).
 
-All routes under `/api/ushers`, `/api/services`, and `/api/rotation` require an
-**ADMIN** role claim (`publicMetadata.role = "ADMIN"`) **and** a matching row in
-the `admins` table (`clerkId` must equal the Clerk user id).
+Roles come from **table membership**, not the JWT: `requireAdmin` checks the
+`admins` table and `requireUsher` checks the `ushers` table (both keyed on the
+Clerk user id in `clerkId`). If a signed-in user has no row yet, the guard
+attempts a one-time link-by-email as a fallback before denying — exact email
+first, then the plus-tag base (`admin+clerk_test@example.com` → `admin@example.com`),
+never claiming a row that already belongs to another Clerk user.
+
+## Testing with Postman
+
+Every request needs a Clerk **session token** in the `Authorization` header as a
+Bearer token. Take one from **Clerk Dashboard → Users → your test user → Create
+test token** (dev instances only).
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:4000/api/services
+```
+
+A call whose `clerkId` has no row yet is answered by the guard **inline** (it
+links the row by email in that same request), so the first call already returns
+`200` when the email matches a seeded row. A `403` means the email matched no
+`admins`/`ushers` row. Verify the effect with `prisma studio` (`admins.email`,
+`admins.clerkId`).
+
+| Endpoint                 | Role  | Expected with the seed admin token |
+| ------------------------ | ----- | ---------------------------------- |
+| `GET /api/health`        | none  | `{ "status": "ok", "db": "deacondb" }` |
+| `GET /api/services`      | ADMIN | `[]` (200)                          |
+| `GET /api/rotation`      | ADMIN | `[]` (200) — the FIFO queue         |
+| `GET /api/ushers`        | ADMIN | `[]` (200) plus shift/queue counts  |
+| `POST /api/services`     | ADMIN | `201` with `{ name, date }` body    |
+| `GET /api/my-schedule`   | USHER | `403` for an admin token (no ushers row) |
+
+## Clerk Webhooks — `/api/webhooks/clerk`
+
+| Method | Path          | Auth  | Description                |
+| ------ | ------------- | ----- | -------------------------- |
+| POST   | `/api/webhooks/clerk` | Svix signed | Clerk → Neon user sync |
+
+Called by Clerk (no Bearer token). Requests must carry the Svix
+`svix-id`/`svix-timestamp`/`svix-signature` headers; the signature is verified
+against `CLERK_WEBHOOK_SECRET`. Handled events:
+
+- `user.created` / `user.updated` — link the Clerk user to the seeded
+  `admins`/`ushers` row by email, assign the role, and write it back to Clerk
+  `publicMetadata.role` so sessions carry it.
+- `user.deleted` — remove the matching admin/usher row.
 
 ## Health
 
@@ -62,7 +105,7 @@ ushers to the back of the queue.
 
 ## My Schedule — `/api/my-schedule`
 
-Requires an **USHER** role claim and a matching `ushers` row (`clerkId`).
+Requires a matching `ushers` row (`clerkId`).
 
 | Method | Path          | Auth  | Description                          |
 | ------ | ------------- | ----- | ------------------------------------ |

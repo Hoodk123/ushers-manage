@@ -42,7 +42,7 @@ myScheduleRouter.patch("/:shiftId", async (req, res) => {
   }
 
   const updated = await prisma.shift.update({
-    where: { id: shift.id },
+    where: { id: shift.id, usherId: shift.usherId },
     data: { status: parsed.data.status },
   });
   res.json({ shift: updated });

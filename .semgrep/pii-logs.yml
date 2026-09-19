@@ -1,0 +1,19 @@
+rules:
+  - id: no-pii-in-console-logs
+    languages:
+      - typescript
+      - javascript
+    severity: WARNING
+    message: >-
+      A console call's arguments look like personal data (email, phone,
+      clerkId). Log the internal id instead of PII.
+    patterns:
+      - pattern-either:
+          - pattern: console.log($ARG)
+          - pattern: console.warn($ARG)
+          - pattern: console.error($ARG)
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: (?i)(email|phone|clerkId)
+    metadata:
+      category: security

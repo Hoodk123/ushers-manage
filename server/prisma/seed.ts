@@ -4,13 +4,16 @@ import "dotenv/config";
 const prisma = new PrismaClient();
 
 async function main() {
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com").trim().toLowerCase();
+  const adminClerkId = process.env.SEED_ADMIN_CLERK_ID?.trim() || null;
+
   const admin = await prisma.admin.upsert({
-    where: { email: "admin@example.com" },
-    update: {},
+    where: { email: adminEmail },
+    update: { clerkId: adminClerkId },
     create: {
-      clerkId: "dev_admin",
+      clerkId: adminClerkId,
       name: "Lead Admin",
-      email: "admin@example.com",
+      email: adminEmail,
       phone: "+15550000111",
     },
   });

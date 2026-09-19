@@ -42,29 +42,33 @@ ushersRouter.post("/", async (req, res) => {
     return res.status(409).json({ error: "An usher with that email already exists" });
   }
 
-  const usher = await prisma.$transaction(async (tx) => {
-    const created = await tx.usher.create({
-      data: {
-        adminId: admin.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone ?? null,
-        clerkId: data.clerkId ?? null,
-      },
-    });
-    const maxPos = await tx.rotationQueueEntry.findFirst({
-      where: { adminId: admin.id },
-      orderBy: { position: "desc" },
-    });
-    await tx.rotationQueueEntry.create({
-      data: {
-        adminId: admin.id,
-        usherId: created.id,
-        position: (maxPos?.position ?? 0) + 1,
-      },
-    });
-    return created;
-  });
+  const usher = await prisma.$transaction(
+    async (tx) => {
+      const created = await tx.usher.create({
+        data: {
+          adminId: admin.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone ?? null,
+          clerkId: data.clerkId ?? null,
+        },
+      });
+      const maxPos = await tx.rotationQueueEntry.findFirst({
+        where: { adminId: admin.id },
+        orderBy: { position: "desc" },
+      });
+      await tx.rotationQueueEntry.create({
+        data: {
+          adminId: admin.id,
+          usherId: created.id,
+          position: (maxPos?.position ?? 0) + 1,
+        },
+      });
+      return created;
+    },
+    // Neon round-trips are slow; Prisma's 5s default is too tight.
+    { timeout: 30_000, maxWait: 10_000 }
+  );
 
   res.status(201).json({ usher });
 });
@@ -85,7 +89,7 @@ ushersRouter.patch("/:id", async (req, res) => {
   }
 
   const usher = await prisma.usher.update({
-    where: { id: existing.id },
+    where: { id: existing.id, adminId: existing.adminId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),
@@ -105,6 +109,6 @@ ushersRouter.delete("/:id", async (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Usher not found" });
   }
-  await prisma.usher.delete({ where: { id: existing.id } });
+  await prisma.usher.delete({ where: { id: existing.id, adminId: existing.adminId } });
   res.status(204).end();
 });

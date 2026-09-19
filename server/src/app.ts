@@ -7,15 +7,18 @@ import { ushersRouter } from "./routes/ushers.js";
 import { servicesRouter } from "./routes/services.js";
 import { rotationRouter } from "./routes/rotation.js";
 import { myScheduleRouter } from "./routes/my-schedule.js";
+import { webhooksRouter } from "./routes/webhooks.js";
 
 export const app = express();
 
-app.use(
-  cors({
-    origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  credentials: true,
+}));
+
+// Must be mounted before express.json() — Svix signs the raw request body.
+app.use("/api/webhooks", webhooksRouter);
+
 app.use(express.json());
 
 const hasClerkKeys = Boolean(process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY);

@@ -1,0 +1,18 @@
+rules:
+  - id: forbid-prisma-raw-unsafe
+    languages:
+      - typescript
+      - javascript
+    severity: ERROR
+    message: >-
+      Raw SQL via `$queryRawUnsafe`/`$executeRawUnsafe` bypasses the Prisma
+      query builder's safe parameterization. This codebase has no legitimate
+      use for either; rewrite using the typed Prisma Client API.
+    patterns:
+      - pattern-either:
+          - pattern: prisma.$queryRawUnsafe(...)
+          - pattern: prisma.$executeRawUnsafe(...)
+    metadata:
+      category: security
+      technology:
+        - prisma

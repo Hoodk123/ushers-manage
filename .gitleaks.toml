@@ -1,0 +1,16 @@
+title = "deacons-manage gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-safe placeholder credentials in .env.example files"
+regexes = [
+  '''pk_test_[A-Za-z0-9]+''',
+  '''sk_test_[A-Za-z0-9]+''',
+  '''whsec_[A-Za-z0-9]+''',
+  '''postgresql://[A-Z]+:[A-Z]+@''',
+]
+paths = [
+  '''\.env\.example$''',
+]
