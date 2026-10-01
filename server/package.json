@@ -21,7 +21,7 @@
     "@clerk/express": "^2.1.69",
     "@prisma/client": "^6.19.0",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "pg": "^8.16.3",
