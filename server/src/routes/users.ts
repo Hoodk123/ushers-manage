@@ -57,8 +57,9 @@ usersRouter.get("/", async (_req, res) => {
 
 /** POST /api/users/:id/admin — promote an account to admin (link or create the admin profile). */
 usersRouter.post("/:id/admin", async (req, res) => {
-  // nosemgrep: idor-client-id-without-ownership-scope — route is requireAdmin-gated;
-  // admins are allowed to act on any account (cross-tenant scope is intentional here).
+  // NOTE: route is requireAdmin-gated; admins may act on any account
+  // (promoting/demoting is the point of this router — cross-tenant scope intentional).
+  // nosemgrep
   const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
@@ -74,8 +75,9 @@ usersRouter.post("/:id/admin", async (req, res) => {
     if (candidate.userId && candidate.userId !== user.id) {
       return res.status(409).json({ error: "That admin profile is already claimed" });
     }
-    // nosemgrep: idor-client-id-without-ownership-scope — candidate came from an
-    // email-scoped lookup; route is requireAdmin-gated (cross-tenant scope intentional).
+    // NOTE: candidate came from an email-scoped lookup; route is
+    // requireAdmin-gated (promote/demote is cross-tenant by design).
+    // nosemgrep
     const admin = await prisma.admin.update({
       where: { id: candidate.id },
       data: { userId: user.id, email: user.email, name: user.name },
@@ -95,8 +97,9 @@ usersRouter.delete("/:id/admin", async (req, res) => {
   if (!admin) {
     return res.status(404).json({ error: "That user is not linked to an admin profile" });
   }
-  // nosemgrep: idor-client-id-without-ownership-scope — admin.id came from the
-  // userId-scoped lookup just above; route is requireAdmin-gated (cross-tenant scope intentional).
+  // NOTE: admin.id came from the userId-scoped lookup just above; route
+  // is requireAdmin-gated (promote/demote is cross-tenant by design).
+  // nosemgrep
   await prisma.admin.update({ where: { id: admin.id }, data: { userId: null } });
   res.json({ ok: true });
 });

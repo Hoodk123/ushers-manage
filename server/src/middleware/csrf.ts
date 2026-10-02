@@ -9,18 +9,21 @@ const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 /**
  * Synchronizer-token CSRF protection for the cookie-session API.
  *
- * Sets a readable `XSRF-TOKEN` cookie on every response (SPA reads it via JS)
- * and, for state-changing methods, requires that value to be echoed back in the
- * `X-XSRF-TOKEN` header. Cross-site requests cannot set that header without a
- * CORS preflight that our fixed-origin policy rejects, and 64-hex tokens are
- * unguessable. This is belt-and-suspenders on top of SameSite=Lax.
+ * Registers as the FIRST middleware: reads the incoming `XSRF-TOKEN` cookie
+ * directly from the raw `Cookie` header (so it can run before `cookieParser`)
+ * and sets a readable fresh `XSRF-TOKEN` cookie on every response (the SPA
+ * reads it via JS). For state-changing methods it requires that value to be
+ * echoed back in the `X-XSRF-TOKEN` header. Cross-site requests cannot set
+ * that header without a CORS preflight that our fixed-origin policy rejects,
+ * and 64-hex tokens are unguessable. This is belt-and-suspenders on top of
+ * SameSite=Lax.
  *
  * The check only fires when a valid token cookie is already present, so a
- * brand-new client (no cookie yet) is never brickwalled — the threat this block
- * is a forged state-change riding on an already-signed-in cookie.
+ * brand-new client (no cookie yet) is never brickwalled — the threat this
+ * block is a forged state-change riding on an already-signed-in cookie.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  const incoming = (req.cookies as Record<string, string> | undefined)?.[XSRF_COOKIE];
+  const incoming = readCookie(req, XSRF_COOKIE);
   const valid = typeof incoming === "string" && TOKEN_PATTERN.test(incoming);
   const token = valid ? incoming : randomBytes(32).toString("hex");
 
@@ -35,4 +38,17 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return res.status(403).json({ error: "CSRF token missing or invalid" });
   }
   next();
+}
+
+/** Reads a single cookie from the raw `Cookie` header without a parser. */
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq).trim() === name) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return undefined;
 }
