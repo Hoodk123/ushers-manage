@@ -43,7 +43,7 @@ async function main() {
   // Link the account to the admin profile unless an account already owns it.
   if (admin.userId && admin.userId !== adminUser.id) {
     console.warn(
-      `[warn] admin profile ${adminEmail} is already linked to another account — not re-linking`
+      `[warn] admin profile ${admin.id} is already linked to another account — not re-linking`
     );
   } else if (!admin.userId) {
     await prisma.admin.update({ where: { id: admin.id }, data: { userId: adminUser.id } });
@@ -74,7 +74,7 @@ async function main() {
 
   const usherCount = await prisma.usher.count();
   console.log(
-    `Seed OK — admin "${admin.name}" (${adminEmail}) + ${usherCount} ushers`
+    `Seed OK — admin "${admin.name}" (${admin.id}) + ${usherCount} ushers`
   );
 }
 

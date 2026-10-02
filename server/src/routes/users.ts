@@ -57,6 +57,8 @@ usersRouter.get("/", async (_req, res) => {
 
 /** POST /api/users/:id/admin — promote an account to admin (link or create the admin profile). */
 usersRouter.post("/:id/admin", async (req, res) => {
+  // nosemgrep: idor-client-id-without-ownership-scope — route is requireAdmin-gated;
+  // admins are allowed to act on any account (cross-tenant scope is intentional here).
   const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
