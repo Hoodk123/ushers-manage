@@ -1,8 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
-const XSRF_COOKIE = "XSRF-TOKEN";
-const XSRF_HEADER = "x-xsrf-token";
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -22,18 +20,18 @@ const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
  * block is a forged state-change riding on an already-signed-in cookie.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  const incoming = (req.cookies as Record<string, string> | undefined)?.[XSRF_COOKIE];
+  const incoming = req.cookies?.["XSRF-TOKEN"];
   const valid = typeof incoming === "string" && TOKEN_PATTERN.test(incoming);
   const token = valid ? incoming : randomBytes(32).toString("hex");
 
-  res.cookie(XSRF_COOKIE, token, {
+  res.cookie("XSRF-TOKEN", token, {
     httpOnly: false,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
 
-  if (UNSAFE_METHODS.has(req.method) && valid && req.header(XSRF_HEADER) !== incoming) {
+  if (UNSAFE_METHODS.has(req.method) && valid && req.header("x-xsrf-token") !== incoming) {
     return res.status(403).json({ error: "CSRF token missing or invalid" });
   }
   next();
