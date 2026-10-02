@@ -45,9 +45,93 @@ h1 {
 }
 
 .signed-in {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 p {
   margin: 8px 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.auth-form h2 {
+  margin: 0;
+  font-size: 20px;
+  text-align: center;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: #374151;
+}
+
+.auth-form input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.auth-form button {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-form button:hover {
+  background: #1f2937;
+}
+
+.divider {
+  color: #9ca3af;
+  font-size: 13px;
+  margin: 16px 0;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.role {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.signed-in button {
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.signed-in button:hover {
+  background: #f3f4f6;
 }

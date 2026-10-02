@@ -14,7 +14,7 @@ Monorepo with npm workspaces:
 
 ```
 /frontend   (React + Vite)
-/server     (Express + Prisma + Clerk)
+/server     (Express + Prisma, self-managed session auth)
 ```
 
 All workflows below should scope to the relevant workspace using
@@ -102,7 +102,7 @@ Also add a `.gitleaks.toml` allowlist for known-safe placeholders (e.g. the
 doesn't flag your own docs.
 
 Also add it as a **pre-commit hook** (not just CI) so a leaked
-`CLERK_SECRET_KEY` or `DATABASE_URL` never even reaches a push:
+`DATABASE_URL` or `SEED_ADMIN_PASSWORD` never even reaches a push:
 
 ```bash
 npx husky add .husky/pre-commit "gitleaks protect --staged --redact"
@@ -181,7 +181,7 @@ rules for this codebase — ask the agent to write these as Semgrep YAML rules:
   it straight into a `where: { id: ... }` Prisma call **without** also
   scoping by `adminId` — this is the IDOR risk described below.
 - Flag any `console.log` / `console.error` call whose arguments include a
-  variable named like `email`, `phone`, `clerkId`, or a full `usher`/`admin`
+  variable named like `email`, `phone`, or a full `usher`/`admin`
   object (PII in logs).
 
 ---
@@ -220,19 +220,32 @@ These map directly to `schema.prisma` as shared:
    integer (an unbounded `count` lets someone request an absurd number of
    shifts in one call).
 
-5. **Clerk webhook hardening**
-   - Verify the Svix signature before touching the payload (per your
-     `api.md` — make sure this is enforced, not optional).
-   - Treat the webhook handler as public/unauthenticated by design, but rate
-     limit it and reject anything that doesn't parse to the three expected
-     event types.
-   - The link-by-email fallback in `requireAdmin`/`requireUsher` should
-     never *create* an Admin/Usher row — only link an existing one. Confirm
-     this stays true; it's the difference between "self-heals a race
-     condition" and "lets anyone self-promote to admin with the right
-     email."
+5. **Session & credential hardening** (self-managed auth)
+   - Passwords are hashed with **argon2id** (OWASP recommended) at signup and
+     verified on login with constant-time comparison by the library.
+   - Session tokens are **cryptographically random** (≥ 32 bytes of CSPRNG
+     entropy), stored only as a SHA-256 digest in the `sessions` table, and
+     never returned to the client as plaintext: only an opaque `sid` cookie
+     (`HttpOnly`, `Secure`, `SameSite=Lax`, 7-day TTL) is set. There is no
+     row keyed by the raw token, so a DB leak cannot be replayed.
+   - The raw token is shown to the user exactly once (the `{ token }` in the
+     signup response, for ushers) — nothing else ever logs or returns it.
+   - Ushers authenticate with a shared team token; their first `GET
+     /api/my-schedule` creates their `Usher` row. If the team token is
+     compromised, rotate it by resetting every session with
+     `UPDATE sessions SET digest = '' WHERE usherId IS NOT NULL;` plus
+     re-hashing the new team token in `server/.env`.
+   - The `sessions.role` claim is verified and enforced per request by the
+     route guards; `requireAdmin` / `requireUsher` reject mismatches on every
+     call, not just at signup.
+   - **CSRF** (`middleware/csrf.ts`): a readable `XSRF-TOKEN` cookie is set on
+     every response and `POST`/`PUT`/`PATCH`/`DELETE` must echo it in the
+     `X-XSRF-TOKEN` header (the SPA does this from `document.cookie`), over
+     SameSite=Lax on the session cookie. Keep this middleware registered
+     before the state-changing routes; removing it defeats CodeQL
+     `js/missing-token-validation`.
 
-6. **No PII in logs.** `email`, `phone`, `clerkId` should never be logged in
+6. **No PII in logs.** `email`, `phone` should never be logged in
    plaintext in request logging middleware or error handlers — log the
    internal `id` instead.
 

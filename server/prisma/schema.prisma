@@ -14,10 +14,42 @@ enum ShiftStatus {
   SERVED
 }
 
+/// A login account (email + password). Role is decided by profile membership:
+/// linking the account to an `admins` row grants admin routes, an `ushers` row
+/// grants usher routes.
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  admin        Admin?
+  usher        Usher?
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("users")
+}
+
+/// A login session. The cookie carries a random token; only its SHA-256 hash is
+/// stored, so a DB leak cannot be replayed as a cookie.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
 /// The leader / administrator. Each admin leads a team of ushers.
 model Admin {
   id          String               @id @default(cuid())
-  clerkId     String?              @unique
+  userId      String?              @unique
+  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   name        String
   email       String               @unique
   phone       String?
@@ -34,7 +66,8 @@ model Admin {
 /// A church usher. Child of the Admin who leads them.
 model Usher {
   id          String                @id @default(cuid())
-  clerkId     String?               @unique
+  userId      String?               @unique
+  user        User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
   adminId     String
   name        String
   email       String                @unique

@@ -11,7 +11,6 @@ const usherSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
   phone: z.string().trim().optional().nullable(),
-  clerkId: z.string().trim().optional().nullable(),
 });
 
 /** GET /api/ushers — list the admin's ushers */
@@ -50,7 +49,6 @@ ushersRouter.post("/", async (req, res) => {
           name: data.name,
           email: data.email,
           phone: data.phone ?? null,
-          clerkId: data.clerkId ?? null,
         },
       });
       const maxPos = await tx.rotationQueueEntry.findFirst({
@@ -94,7 +92,6 @@ ushersRouter.patch("/:id", async (req, res) => {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),
       ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
-      ...(parsed.data.clerkId !== undefined ? { clerkId: parsed.data.clerkId } : {}),
     },
   });
   res.json({ usher });
