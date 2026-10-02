@@ -9,11 +9,10 @@ const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 /**
  * Synchronizer-token CSRF protection for the cookie-session API.
  *
- * Registers as the FIRST middleware: reads the incoming `XSRF-TOKEN` cookie
- * directly from the raw `Cookie` header (so it can run before `cookieParser`)
- * and sets a readable fresh `XSRF-TOKEN` cookie on every response (the SPA
- * reads it via JS). For state-changing methods it requires that value to be
- * echoed back in the `X-XSRF-TOKEN` header. Cross-site requests cannot set
+ * Registers immediately after `cookieParser`: reads the incoming `XSRF-TOKEN`
+ * cookie and sets a fresh readable `XSRF-TOKEN` cookie on every response (the
+ * SPA reads it via JS). For state-changing methods it requires that value to
+ * be echoed back in the `X-XSRF-TOKEN` header. Cross-site requests cannot set
  * that header without a CORS preflight that our fixed-origin policy rejects,
  * and 64-hex tokens are unguessable. This is belt-and-suspenders on top of
  * SameSite=Lax.
@@ -23,7 +22,7 @@ const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
  * block is a forged state-change riding on an already-signed-in cookie.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  const incoming = readCookie(req, XSRF_COOKIE);
+  const incoming = (req.cookies as Record<string, string> | undefined)?.[XSRF_COOKIE];
   const valid = typeof incoming === "string" && TOKEN_PATTERN.test(incoming);
   const token = valid ? incoming : randomBytes(32).toString("hex");
 
@@ -34,21 +33,8 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     path: "/",
   });
 
-  if (UNSAFE_METHODS.has(req.method) && valid && req.header(XSRF_HEADER) !== token) {
+  if (UNSAFE_METHODS.has(req.method) && valid && req.header(XSRF_HEADER) !== incoming) {
     return res.status(403).json({ error: "CSRF token missing or invalid" });
   }
   next();
-}
-
-/** Reads a single cookie from the raw `Cookie` header without a parser. */
-function readCookie(req: Request, name: string): string | undefined {
-  const header = req.headers.cookie;
-  if (!header) return undefined;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq > 0 && part.slice(0, eq).trim() === name) {
-      return decodeURIComponent(part.slice(eq + 1).trim());
-    }
-  }
-  return undefined;
 }

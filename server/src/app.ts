@@ -19,12 +19,13 @@ app.use(cors({
   credentials: true,
 }));
 
-// CSRF guard FIRST: sets the readable XSRF-TOKEN cookie and verifies
-// X-XSRF-TOKEN on unsafe methods. Runs before body parsing / cookieParser so
-// every later handler is behind the guard.
+// Cookie parsing first, then the CSRF guard: it reads the incoming
+// XSRF-TOKEN cookie via req.cookies and, on unsafe methods, requires the
+// value to be echoed back in the X-XSRF-TOKEN header. Every handler below is
+// therefore behind the guard.
+app.use(cookieParser());
 app.use(csrfProtection);
 app.use(express.json());
-app.use(cookieParser());
 
 // Resolves the Auth-Token session cookie into res.locals.session (if any).
 app.use(resolveSession);

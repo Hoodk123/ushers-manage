@@ -77,8 +77,8 @@ usersRouter.post("/:id/admin", async (req, res) => {
     }
     // NOTE: candidate came from an email-scoped lookup; route is
     // requireAdmin-gated (promote/demote is cross-tenant by design).
-    // nosemgrep
     const admin = await prisma.admin.update({
+      // nosemgrep
       where: { id: candidate.id },
       data: { userId: user.id, email: user.email, name: user.name },
     });
