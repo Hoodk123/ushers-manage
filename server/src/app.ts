@@ -1,13 +1,15 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { clerkMiddleware } from "@clerk/express";
+import cookieParser from "cookie-parser";
 import { prisma } from "./lib/prisma.js";
+import { resolveSession } from "./middleware/session.js";
+import { authRouter } from "./routes/auth.js";
+import { usersRouter } from "./routes/users.js";
 import { ushersRouter } from "./routes/ushers.js";
 import { servicesRouter } from "./routes/services.js";
 import { rotationRouter } from "./routes/rotation.js";
 import { myScheduleRouter } from "./routes/my-schedule.js";
-import { webhooksRouter } from "./routes/webhooks.js";
 
 export const app = express();
 
@@ -16,17 +18,11 @@ app.use(cors({
   credentials: true,
 }));
 
-// Must be mounted before express.json() — Svix signs the raw request body.
-app.use("/api/webhooks", webhooksRouter);
-
 app.use(express.json());
+app.use(cookieParser());
 
-const hasClerkKeys = Boolean(process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY);
-if (hasClerkKeys) {
-  app.use(clerkMiddleware());
-} else {
-  console.warn("[warn] Clerk keys missing — auth disabled. Set CLERK_SECRET_KEY + CLERK_PUBLISHABLE_KEY in server/.env");
-}
+// Resolves the Auth-Token session cookie into res.locals.session (if any).
+app.use(resolveSession);
 
 app.get("/api/health", async (_req, res) => {
   try {
@@ -39,6 +35,8 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+app.use("/api/auth", authRouter);
+app.use("/api/users", usersRouter);
 app.use("/api/ushers", ushersRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/rotation", rotationRouter);
