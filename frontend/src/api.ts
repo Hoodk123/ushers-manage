@@ -1,5 +1,10 @@
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
+function xsrfCookie(): string | undefined {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : undefined
+}
+
 export interface SessionUser {
   id: string
   email: string
@@ -39,6 +44,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = xsrfCookie()
   let res: Response
   try {
     res = await fetch(`${BASE}${path}`, {
@@ -46,6 +52,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       credentials: 'include',
       headers: {
         ...(options.body ? { 'content-type': 'application/json' } : {}),
+        ...(token ? { 'x-xsrf-token': token } : {}),
         ...options.headers,
       },
     })

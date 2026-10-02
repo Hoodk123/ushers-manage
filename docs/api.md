@@ -19,6 +19,13 @@ creation (an admin password sign-in vs. an usher team-token sign-in):
 
 Both guards re-check `sessions.role` on every request.
 
+**CSRF protection.** The API also sets a readable `XSRF-TOKEN` cookie on every
+response. State-changing methods (`POST`/`PUT`/`PATCH`/`DELETE`) must echo that
+value in the `X-XSRF-TOKEN` header; the web client's `api.ts` does this
+automatically from `document.cookie`. Requests without a matching header get
+`403`. (The check only applies once a valid token cookie exists — a fresh
+client's first request is never blocked.)
+
 ## Testing with Postman
 
 Postman's cookie jar handles the session automatically:

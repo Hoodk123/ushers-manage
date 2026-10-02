@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { prisma } from "./lib/prisma.js";
+import { csrfProtection } from "./middleware/csrf.js";
 import { resolveSession } from "./middleware/session.js";
 import { authRouter } from "./routes/auth.js";
 import { usersRouter } from "./routes/users.js";
@@ -20,6 +21,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
+
+// CSRF: sets the readable XSRF-TOKEN cookie and verifies X-XSRF-TOKEN on unsafe methods.
+app.use(csrfProtection);
 
 // Resolves the Auth-Token session cookie into res.locals.session (if any).
 app.use(resolveSession);

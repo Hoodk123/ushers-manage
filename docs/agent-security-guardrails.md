@@ -238,6 +238,12 @@ These map directly to `schema.prisma` as shared:
    - The `sessions.role` claim is verified and enforced per request by the
      route guards; `requireAdmin` / `requireUsher` reject mismatches on every
      call, not just at signup.
+   - **CSRF** (`middleware/csrf.ts`): a readable `XSRF-TOKEN` cookie is set on
+     every response and `POST`/`PUT`/`PATCH`/`DELETE` must echo it in the
+     `X-XSRF-TOKEN` header (the SPA does this from `document.cookie`), over
+     SameSite=Lax on the session cookie. Keep this middleware registered
+     before the state-changing routes; removing it defeats CodeQL
+     `js/missing-token-validation`.
 
 6. **No PII in logs.** `email`, `phone` should never be logged in
    plaintext in request logging middleware or error handlers — log the
